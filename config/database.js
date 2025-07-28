@@ -1,4 +1,8 @@
+import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
+
+// 初始化 dotenv 配置
+dotenv.config();
 
 // 数据库配置
 const dbConfig = {
