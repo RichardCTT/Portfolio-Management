@@ -163,3 +163,76 @@ INSERT INTO assets (name, asset_type_id, quantity, code, description, create_dat
 ('Copper Futures', 6, 0, 'FUT008', 'Futures contract for copper commodity', CURDATE()),
 ('Wheat Futures', 6, 0, 'FUT009', 'Futures contract for wheat commodity', CURDATE()),
 ('Bitcoin Futures', 6, 0, 'FUT010', 'Futures contract on Bitcoin cryptocurrency', CURDATE());
+
+-- =========================================
+-- 📈 Insert Mock Daily Prices for July 2025 (Compatible Version)
+-- =========================================
+-- This script generates mock prices for all assets from 2025-07-01 to 2025-07-31.
+-- Compatible with MySQL 5.7+ and avoids complex CTE issues.
+-- =========================================
+
+-- Create a temporary list of dates for July 2025
+CREATE TEMPORARY TABLE temp_dates (date DATE);
+INSERT INTO temp_dates (date) VALUES
+('2025-07-01'), ('2025-07-02'), ('2025-07-03'), ('2025-07-04'), ('2025-07-05'), ('2025-07-06'), ('2025-07-07'),
+('2025-07-08'), ('2025-07-09'), ('2025-07-10'), ('2025-07-11'), ('2025-07-12'), ('2025-07-13'), ('2025-07-14'),
+('2025-07-15'), ('2025-07-16'), ('2025-07-17'), ('2025-07-18'), ('2025-07-19'), ('2025-07-20'), ('2025-07-21'),
+('2025-07-22'), ('2025-07-23'), ('2025-07-24'), ('2025-07-25'), ('2025-07-26'), ('2025-07-27'), ('2025-07-28'),
+('2025-07-29'), ('2025-07-30'), ('2025-07-31');
+
+-- Insert mock prices for all assets on all dates
+INSERT INTO price_daily (asset_id, date, price)
+SELECT
+    a.id AS asset_id,
+    d.date,
+    CASE
+        -- Cash: 1 unit = 1 USD
+        WHEN a.code = 'CASH001' THEN 1.0
+        
+        -- Stocks: Simulate prices between $50 and $300
+        WHEN a.asset_type_id = 2 THEN ROUND(50 + (RAND() * 250), 2)
+        
+        -- Bonds: Simulate prices close to 100 (par value), e.g., 95-105
+        WHEN a.asset_type_id = 3 THEN ROUND(95 + (RAND() * 10), 2)
+        
+        -- Cryptocurrencies: Highly volatile, simulate wide ranges
+        WHEN a.asset_type_id = 4 THEN 
+            CASE a.code
+                WHEN 'CRYPTO001' THEN ROUND(40000 + (RAND() * 20000), 2) -- BTC: $40k - $60k
+                WHEN 'CRYPTO002' THEN ROUND(2000 + (RAND() * 1000), 2)  -- ETH: $2k - $3k
+                ELSE ROUND(0.1 + (RAND() * 5), 2) -- Other cryptos: $0.1 - $5.1
+            END
+        
+        -- Foreign Currencies: Simulate FX rates
+        WHEN a.asset_type_id = 5 THEN
+            CASE a.code
+                WHEN 'FX001' THEN ROUND(1.05 + (RAND() * 0.1), 4) -- EUR/USD: 1.05 - 1.15
+                WHEN 'FX002' THEN ROUND(150 + (RAND() * 20), 2)   -- JPY/USD: ¥150 - ¥170
+                WHEN 'FX003' THEN ROUND(1.25 + (RAND() * 0.15), 4) -- GBP/USD: 1.25 - 1.40
+                WHEN 'FX004' THEN ROUND(0.9 + (RAND() * 0.1), 4)  -- CHF/USD: 0.90 - 1.00
+                WHEN 'FX005' THEN ROUND(1.3 + (RAND() * 0.2), 4)  -- CAD/USD: 1.30 - 1.50
+                WHEN 'FX006' THEN ROUND(1.5 + (RAND() * 0.3), 4)  -- AUD/USD: 1.50 - 1.80
+                WHEN 'FX007' THEN ROUND(7.2 + (RAND() * 0.5), 4)  -- CNY/USD: ¥7.2 - ¥7.7
+                ELSE ROUND(1.0 + (RAND() * 2.0), 4) -- Default for other FX
+            END
+        
+        -- Futures: Simulate based on underlying (very rough)
+        WHEN a.asset_type_id = 6 THEN
+            CASE a.code
+                WHEN 'FUT001' THEN ROUND(5000 + (RAND() * 1000), 2) -- S&P 500 E-mini
+                WHEN 'FUT002' THEN ROUND(70 + (RAND() * 30), 2)    -- Crude Oil
+                WHEN 'FUT003' THEN ROUND(2000 + (RAND() * 500), 2) -- Gold
+                WHEN 'FUT004' THEN ROUND(2.5 + (RAND() * 1.5), 2)  -- Natural Gas
+                WHEN 'FUT010' THEN ROUND(40000 + (RAND() * 20000), 2) -- Bitcoin Futures
+                ELSE ROUND(500 + (RAND() * 500), 2) -- Default for other futures
+            END
+        
+        -- Fallback for any unforeseen asset type
+        ELSE ROUND(10 + (RAND() * 100), 2)
+    END AS mock_price
+FROM assets a
+CROSS JOIN temp_dates d
+ORDER BY a.id, d.date;
+
+-- Clean up: Drop the temporary table
+DROP TEMPORARY TABLE temp_dates;
