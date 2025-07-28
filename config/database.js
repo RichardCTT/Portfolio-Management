@@ -1,4 +1,4 @@
-const mysql = require('mysql2/promise');
+import mysql from 'mysql2/promise';
 
 // 数据库配置
 const dbConfig = {
@@ -14,13 +14,10 @@ const dbConfig = {
 // 连接池配置
 const poolConfig = {
   ...dbConfig,
-  waitForConnections: true,
-  connectionLimit: 10,        // 最大连接数
-  queueLimit: 0,             // 排队等待的最大请求数，0表示无限制
-  acquireTimeout: 60000,     // 获取连接的超时时间
-  timeout: 60000,            // 查询超时时间
-  reconnect: true,           // 自动重连
-  multipleStatements: false   // 禁用多语句查询（安全考虑）
+  waitForConnections: true,     // 当无可用连接时是否等待
+  connectionLimit: 10,          // 最大连接数
+  queueLimit: 0,                // 排队等待的最大请求数，0表示无限制
+  multipleStatements: false      // 禁用多语句查询（安全考虑）
 };
 
 // 创建连接池
@@ -87,7 +84,7 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-module.exports = {
+export {
   pool,
   query,
   transaction,
