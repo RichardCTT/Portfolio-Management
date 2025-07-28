@@ -1,49 +1,49 @@
 # Portfolio Management
 
-一个基于Express.js的投资组合管理系统API
+A portfolio management system API built with Express.js
 
-## 快速开始
+## Quick Start
 
-1. 安装依赖：
+1. Install dependencies:
 ```bash
 npm install
 ```
 
-2. 复制环境变量文件：
+2. Copy environment variables file:
 ```bash
 cp .env.example .env
 ```
 
-3. 启动开发服务器：
+3. Start development server:
 ```bash
 npm run dev
 ```
 
-4. 或启动生产服务器：
+4. Or start production server:
 ```bash
 npm start
 ```
 
-5. 访问：http://localhost:3000
+5. Visit: http://localhost:3000
 
-## API 端点
+## API Endpoints
 
-- `GET /` - 欢迎页面
+- `GET /` - Welcome page
 
-## 项目结构
+## Project Structure
 
 ```
 Portfolio-Management/
-├── app.js              # 主应用文件
-├── package.json        # 项目配置
-├── .env.example        # 环境变量示例
-├── .gitignore         # Git忽略文件
-├── routes/            # 路由文件夹
-├── config/            # 配置文件夹
-└── public/            # 静态文件夹
+├── app.js              # Main application file
+├── package.json        # Project configuration
+├── .env.example        # Environment variables example
+├── .gitignore         # Git ignore file
+├── routes/            # Routes folder
+├── config/            # Configuration folder
+└── public/            # Static files folder
 ```
 
-## 开发
+## Development
 
-- 使用 `npm run dev` 启动开发模式（需要安装 nodemon）
-- 使用 `npm test` 运行测试
+- Use `npm run dev` to start development mode (requires nodemon)
+- Use `npm test` to run tests
