@@ -91,7 +91,7 @@ router.get('/', async (req, res) => {
     const offset = (page - 1) * pageSize;
 
     const [items, totalResult] = await Promise.all([
-      query('SELECT id, name, unit, description FROM asset_types LIMIT ? OFFSET ?', [pageSize, offset]),
+      query(`SELECT id, name, unit, description FROM asset_types LIMIT ${pageSize} OFFSET ${offset}`, []),
       query('SELECT COUNT(*) as total FROM asset_types')
     ]);
 
@@ -151,7 +151,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query('SELECT id, name, unit, description FROM asset_types WHERE id = ?', [id]);
-    
+
     if (result.length === 0) {
       return res.status(404).json({
         code: 404,
@@ -221,12 +221,12 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { name, unit, description } = req.body;
-    
+
     const result = await query(
       'INSERT INTO asset_types (name, unit, description) VALUES (?, ?, ?)',
       [name, unit, description]
     );
-    
+
     const newAssetType = {
       id: result.insertId,
       name,
@@ -302,7 +302,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { name, unit, description } = req.body;
-    
+
     // 检查资产类型是否存在
     const existing = await query('SELECT id FROM asset_types WHERE id = ?', [id]);
     if (existing.length === 0) {
@@ -312,12 +312,12 @@ router.put('/:id', async (req, res) => {
         data: null
       });
     }
-    
+
     await query(
       'UPDATE asset_types SET name = ?, unit = ?, description = ? WHERE id = ?',
       [name, unit, description, id]
     );
-    
+
     const updatedAssetType = {
       id: parseInt(id),
       name,
@@ -378,7 +378,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // 检查资产类型是否存在
     const existing = await query('SELECT id FROM asset_types WHERE id = ?', [id]);
     if (existing.length === 0) {
@@ -388,7 +388,7 @@ router.delete('/:id', async (req, res) => {
         data: null
       });
     }
-    
+
     // 检查是否有资产关联到该类型
     const assets = await query('SELECT id FROM assets WHERE asset_type_id = ?', [id]);
     if (assets.length > 0) {
@@ -398,7 +398,7 @@ router.delete('/:id', async (req, res) => {
         data: null
       });
     }
-    
+
     await query('DELETE FROM asset_types WHERE id = ?', [id]);
 
     res.json({

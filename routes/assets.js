@@ -107,28 +107,28 @@ const router = express.Router();
  */
 router.get('/', async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.page_size) || 10;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.max(1, Math.min(100, parseInt(req.query.page_size) || 10));
     const assetTypeId = req.query.asset_type_id;
+    const offset = (page - 1) * pageSize;
 
-    let sql = 'SELECT * FROM assets WHERE 1=1';
+    // 构建基础查询语句
+    let baseSql = 'SELECT * FROM assets WHERE 1=1';
+    let countSql = 'SELECT COUNT(*) as total FROM assets WHERE 1=1';
     const params = [];
 
     if (assetTypeId) {
-      sql += ' AND asset_type_id = ?';
-      params.push(assetTypeId);
+      baseSql += ` AND asset_type_id = ${assetTypeId}`;
+      countSql += ` AND asset_type_id = ${assetTypeId}`;
     }
 
-    // 获取总数
-    const countSql = `SELECT COUNT(*) as total FROM (${sql}) as count_table`;
-    const [countResult] = await query(countSql, params);
-    const total = countResult.total;
+    // 使用Promise.all并行执行查询
+    const [items, totalResult] = await Promise.all([
+      query(`${baseSql} LIMIT ${pageSize} OFFSET ${offset}`, []),
+      query(countSql, [])
+    ]);
 
-    // 添加分页
-    sql += ' LIMIT ?, ?';
-    params.push((page - 1) * pageSize, pageSize);
-
-    const items = await query(sql, params);
+    const total = totalResult[0].total;
 
     res.json({
       code: 200,

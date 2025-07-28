@@ -5,50 +5,6 @@ const router = express.Router();
 
 /**
  * @swagger
- * tags:
- *   name: Price Daily
- *   description: 每日价格管理 API
- */
-
-/**
- * @swagger
- * components:
- *   schemas:
- *     PriceDaily:
- *       type: object
- *       required:
- *         - asset_id
- *         - date
- *         - price
- *       properties:
- *         id:
- *           type: integer
- *           description: 价格记录ID
- *         asset_id:
- *           type: integer
- *           description: 资产ID
- *         date:
- *           type: string
- *           format: date
- *           description: 日期
- *         price:
- *           type: number
- *           format: float
- *           description: 价格
- *         create_date:
- *           type: string
- *           format: date-time
- *           description: 创建时间
- *       example:
- *         id: 1
- *         asset_id: 1
- *         date: 2024-06-13
- *         price: 455.0
- *         create_date: 2024-06-13T20:00:00Z
- */
-
-/**
- * @swagger
  * /api/price_daily:
  *   get:
  *     summary: 获取某资产的所有价格记录
@@ -56,7 +12,7 @@ const router = express.Router();
  *     parameters:
  *       - in: query
  *         name: asset_id
- *         required: true
+ *         required: false
  *         schema:
  *           type: integer
  *         description: 资产的唯一标识符
@@ -101,34 +57,30 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const assetId = req.query.asset_id;
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.page_size) || 10;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.max(1, Math.min(100, parseInt(req.query.page_size) || 10));
+    const offset = (page - 1) * pageSize;
 
-    // 检查必需参数
-    if (!assetId) {
-      return res.status(400).json({
-        code: 400,
-        message: 'asset_id is required',
-        data: null
-      });
+    // 构建基础查询语句
+    let baseSql = 'SELECT * FROM price_daily WHERE 1=1';
+    let countSql = 'SELECT COUNT(*) as total FROM price_daily WHERE 1=1';
+
+    // 如果提供了asset_id，则添加筛选条件
+    if (assetId) {
+      baseSql += ` AND asset_id = ${assetId}`;
+      countSql += ` AND asset_id = ${assetId}`;
     }
 
-    let sql = 'SELECT * FROM price_daily WHERE asset_id = ?';
-    const params = [assetId];
+    // 按日期顺序排列
+    baseSql += ' ORDER BY date';
 
-    // 按日期倒序排列
-    sql += ' ORDER BY date DESC';
+    // 使用Promise.all并行执行查询
+    const [items, totalResult] = await Promise.all([
+      query(`${baseSql} LIMIT ${pageSize} OFFSET ${offset}`, []),
+      query(countSql, [])
+    ]);
 
-    // 获取总数
-    const countSql = `SELECT COUNT(*) as total FROM (${sql}) as count_table`;
-    const [countResult] = await query(countSql, params);
-    const total = countResult.total;
-
-    // 添加分页
-    sql += ' LIMIT ?, ?';
-    params.push((page - 1) * pageSize, pageSize);
-
-    const items = await query(sql, params);
+    const total = totalResult[0].total;
 
     res.json({
       code: 200,

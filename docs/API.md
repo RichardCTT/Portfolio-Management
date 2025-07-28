@@ -138,6 +138,7 @@
     "description": "铂金、铑等"
   }
   ```
+
   *注意：`unit` 字段通常不建议修改，此处为示例。*
 - **Response:**
   ```json
@@ -276,6 +277,7 @@
     "description": "99.99%纯度银条"
   }
   ```
+
   *注意：`quantity` 通常由交易记录自动更新，不建议直接修改。*
 - **Response:**
   ```json
@@ -433,7 +435,7 @@
 - **Method:** `GET`
 - **Description:** 获取特定资产的所有历史价格记录。
 - **Query Parameters:**
-  - `asset_id` (integer, required): 资产的唯一标识符。
+  - `asset_id` (integer, optional): 资产的唯一标识符。
   - `page` (integer, optional): 页码，默认为1。
   - `page_size` (integer, optional): 每页条目数，默认为10。
 - **Response:**
