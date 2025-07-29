@@ -7,11 +7,54 @@ import {
 } from '../utils/dateUtils.js';
 
 const router = express.Router();
+
 /**
  * @swagger
  * tags:
  *   name: Price Daily
  *   description: 每日价格管理 API
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     PriceDaily:
+ *       type: object
+ *       required:
+ *         - asset_id
+ *         - date
+ *         - price
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: 价格记录ID
+ *           example: 1
+ *         asset_id:
+ *           type: integer
+ *           description: 资产ID
+ *           example: 2
+ *         date:
+ *           type: string
+ *           format: date
+ *           description: 价格日期
+ *           example: "2025-07-29"
+ *         price:
+ *           type: number
+ *           format: float
+ *           description: 当日价格
+ *           example: 450.75
+ *         create_date:
+ *           type: string
+ *           format: date-time
+ *           description: 记录创建时间
+ *           example: "2025-07-29T10:30:00Z"
+ *       example:
+ *         id: 1
+ *         asset_id: 2
+ *         date: "2025-07-29"
+ *         price: 450.75
+ *         create_date: "2025-07-29T10:30:00Z"
  */
 
 /**
