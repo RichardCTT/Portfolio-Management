@@ -164,6 +164,118 @@ router.get('/:id', async (req, res) => {
 
 /**
  * @swagger
+ * /api/price_daily/range:
+ *   post:
+ *     summary: 获取特定资产在时间范围内的价格数据
+ *     tags: [Price Daily]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - asset_id
+ *               - start_date
+ *               - end_date
+ *             properties:
+ *               asset_id:
+ *                 type: integer
+ *                 description: 资产的唯一标识符
+ *               start_date:
+ *                 type: string
+ *                 format: date
+ *                 description: 开始日期 (YYYY-MM-DD格式)
+ *               end_date:
+ *                 type: string
+ *                 format: date
+ *                 description: 结束日期 (YYYY-MM-DD格式)
+ *             example:
+ *               asset_id: 1
+ *               start_date: "2024-01-01"
+ *               end_date: "2024-01-31"
+ *     responses:
+ *       200:
+ *         description: 成功获取价格数据列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/PriceDaily'
+ *       400:
+ *         description: 参数错误
+ *       500:
+ *         description: 服务器错误
+ */
+router.post('/range', async (req, res) => {
+  try {
+    const { asset_id, start_date, end_date } = req.body;
+
+    // 验证必需参数
+    if (!asset_id || !start_date || !end_date) {
+      return res.status(400).json({
+        code: 400,
+        message: '缺少必需参数: asset_id, start_date, end_date',
+        data: null
+      });
+    }
+
+    // 验证日期格式
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(start_date) || !dateRegex.test(end_date)) {
+      return res.status(400).json({
+        code: 400,
+        message: '日期格式错误，请使用 YYYY-MM-DD 格式',
+        data: null
+      });
+    }
+
+    // 验证日期逻辑
+    if (start_date > end_date) {
+      return res.status(400).json({
+        code: 400,
+        message: '开始日期不能晚于结束日期',
+        data: null
+      });
+    }
+
+    // 查询指定时间范围内的价格数据
+    const sql = `
+      SELECT * FROM price_daily 
+      WHERE asset_id = ? 
+      AND date >= ? 
+      AND date <= ? 
+      ORDER BY date ASC
+    `;
+
+    const prices = await query(sql, [asset_id, start_date, end_date]);
+
+    res.json({
+      code: 200,
+      message: 'Success',
+      data: prices
+    });
+
+  } catch (error) {
+    console.error('获取价格范围数据失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误',
+      data: null
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/price_daily:
  *   post:
  *     summary: 创建/更新价格记录
