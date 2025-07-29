@@ -3,6 +3,234 @@ import { query, transaction } from '../config/database.js';
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Asset:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: Asset ID
+ *         name:
+ *           type: string
+ *           description: Asset name
+ *         code:
+ *           type: string
+ *           description: Asset code
+ *         quantity:
+ *           type: number
+ *           description: Asset quantity
+ *         price:
+ *           type: number
+ *           description: Current price
+ *         valueUSD:
+ *           type: number
+ *           description: Value in USD
+ *         percentage:
+ *           type: number
+ *           description: Percentage of total portfolio
+ *     AssetTypeSummary:
+ *       type: object
+ *       properties:
+ *         value:
+ *           type: number
+ *           description: Total value in USD
+ *         count:
+ *           type: integer
+ *           description: Number of assets
+ *         totalPrice:
+ *           type: number
+ *           description: Total price in USD
+ *         assets:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/Asset'
+ *         percentage:
+ *           type: number
+ *           description: Percentage of total portfolio
+ *     AssetTotalsResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *         data:
+ *           type: object
+ *           properties:
+ *             date:
+ *               type: string
+ *               format: date
+ *               description: Analysis date
+ *             totalValueUSD:
+ *               type: number
+ *               description: Total portfolio value in USD
+ *             assetTypes:
+ *               type: object
+ *               properties:
+ *                 cash:
+ *                   $ref: '#/components/schemas/AssetTypeSummary'
+ *                 stock:
+ *                   $ref: '#/components/schemas/AssetTypeSummary'
+ *                 bond:
+ *                   $ref: '#/components/schemas/AssetTypeSummary'
+ *                 cryptocurrency:
+ *                   $ref: '#/components/schemas/AssetTypeSummary'
+ *                 foreignCurrency:
+ *                   $ref: '#/components/schemas/AssetTypeSummary'
+ *                 futures:
+ *                   $ref: '#/components/schemas/AssetTypeSummary'
+ *             summary:
+ *               type: object
+ *               properties:
+ *                 totalAssets:
+ *                   type: integer
+ *                   description: Total number of assets
+ *                 totalValueUSD:
+ *                   type: number
+ *                   description: Total portfolio value in USD
+ *     AssetTypeResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *         data:
+ *           type: object
+ *           properties:
+ *             date:
+ *               type: string
+ *               format: date
+ *               description: Analysis date
+ *             assetType:
+ *               type: string
+ *               description: Asset type name
+ *             totalValueUSD:
+ *               type: number
+ *               description: Total value in USD
+ *             totalPrice:
+ *               type: number
+ *               description: Total price in USD
+ *             assets:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Asset'
+ *             summary:
+ *               type: object
+ *               properties:
+ *                 totalAssets:
+ *                   type: integer
+ *                   description: Total number of assets
+ *                 totalValueUSD:
+ *                   type: number
+ *                   description: Total value in USD
+ *     ErrorResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: false
+ *         error:
+ *           type: string
+ *           description: Error type
+ *         message:
+ *           type: string
+ *           description: Error message
+ */
+
+/**
+ * @swagger
+ * /api/analysis/asset-totals-by-type:
+ *   get:
+ *     summary: Get total asset values by type for a specific date
+ *     description: |
+ *       Retrieves the total value of all assets categorized by type (cash, stock, bond, 
+ *       cryptocurrency, foreign currency, futures) for a given date. All values are 
+ *       converted to USD. If no date is provided, defaults to today.
+ *     tags:
+ *       - Asset Analysis
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-01-15"
+ *         description: Analysis date (YYYY-MM-DD format). Defaults to today if not provided.
+ *         required: false
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved asset totals by type
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AssetTotalsResponse'
+ *             example:
+ *               success: true
+ *               data:
+ *                 date: "2024-01-15"
+ *                 totalValueUSD: 125000.50
+ *                 assetTypes:
+ *                   cash:
+ *                     value: 25000.00
+ *                     count: 3
+ *                     totalPrice: 25000.00
+ *                     percentage: 20.00
+ *                     assets:
+ *                       - id: 1
+ *                         name: "USD Cash"
+ *                         code: "USD"
+ *                         quantity: 25000
+ *                         price: 1.00
+ *                         valueUSD: 25000.00
+ *                         percentage: 100.00
+ *                   stock:
+ *                     value: 75000.00
+ *                     count: 5
+ *                     totalPrice: 75000.00
+ *                     percentage: 60.00
+ *                     assets:
+ *                       - id: 2
+ *                         name: "Apple Inc"
+ *                         code: "AAPL"
+ *                         quantity: 100
+ *                         price: 150.00
+ *                         valueUSD: 15000.00
+ *                         percentage: 20.00
+ *                   bond:
+ *                     value: 15000.00
+ *                     count: 2
+ *                     totalPrice: 15000.00
+ *                     percentage: 12.00
+ *                     assets: []
+ *                   cryptocurrency:
+ *                     value: 5000.00
+ *                     count: 1
+ *                     totalPrice: 5000.00
+ *                     percentage: 4.00
+ *                     assets: []
+ *                   foreignCurrency:
+ *                     value: 3000.00
+ *                     count: 1
+ *                     totalPrice: 3000.00
+ *                     percentage: 2.40
+ *                     assets: []
+ *                   futures:
+ *                     value: 2000.50
+ *                     count: 1
+ *                     totalPrice: 2000.50
+ *                     percentage: 1.60
+ *                     assets: []
+ *                 summary:
+ *                   totalAssets: 13
+ *                   totalValueUSD: 125000.50
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
 // Main endpoint: Get total asset values by type for a specific date
 router.get('/asset-totals-by-type/', async (req, res) => {
     try {
@@ -160,6 +388,84 @@ router.get('/asset-totals-by-type/', async (req, res) => {
         });
     }
 });
+
+/**
+ * @swagger
+ * /api/analysis/asset-type/{type}:
+ *   get:
+ *     summary: Get total value for a specific asset type
+ *     description: |
+ *       Retrieves the total value and details of all assets of a specific type 
+ *       (cash, stock, bond, cryptocurrency, foreigncurrency, futures) for a given date. 
+ *       All values are converted to USD. If no date is provided, defaults to today.
+ *     tags:
+ *       - Asset Analysis
+ *     parameters:
+ *       - in: path
+ *         name: type
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [cash, stock, bond, cryptocurrency, foreigncurrency, futures]
+ *         description: Asset type to analyze
+ *         example: "stock"
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-01-15"
+ *         description: Analysis date (YYYY-MM-DD format). Defaults to today if not provided.
+ *         required: false
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved asset type totals
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AssetTypeResponse'
+ *             example:
+ *               success: true
+ *               data:
+ *                 date: "2024-01-15"
+ *                 assetType: "stock"
+ *                 totalValueUSD: 75000.00
+ *                 totalPrice: 75000.00
+ *                 assets:
+ *                   - id: 2
+ *                     name: "Apple Inc"
+ *                     code: "AAPL"
+ *                     quantity: 100
+ *                     price: 150.00
+ *                     valueUSD: 15000.00
+ *                     percentage: 20.00
+ *                   - id: 3
+ *                     name: "Microsoft Corp"
+ *                     code: "MSFT"
+ *                     quantity: 200
+ *                     price: 300.00
+ *                     valueUSD: 60000.00
+ *                     percentage: 80.00
+ *                 summary:
+ *                   totalAssets: 2
+ *                   totalValueUSD: 75000.00
+ *       400:
+ *         description: Invalid asset type
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               error: "Invalid asset type"
+ *               message: "Valid types are: cash, stock, bond, cryptocurrency, foreigncurrency, futures"
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 
 // Get specific asset type total value
 router.get('/asset-type/:type', async (req, res) => {
