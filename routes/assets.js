@@ -177,7 +177,7 @@ router.get('/', async (req, res) => {
  * @swagger
  * /api/assets/{id}:
  *   get:
- *     summary: 获取单个资产详情
+ *     summary: 获取单个资产详情(包括价格对比)
  *     tags: [Assets]
  *     parameters:
  *       - in: path
@@ -208,7 +208,26 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const assets = await query('SELECT * FROM assets WHERE id = ?', [id]);
+    const assets = await query(`
+      SELECT 
+        a.*,
+        today.price as current_price,
+        yesterday.price as previous_price,
+        CASE 
+          WHEN yesterday.price IS NOT NULL AND yesterday.price != 0 
+          THEN ((today.price - yesterday.price) / yesterday.price) * 100
+          ELSE NULL
+        END as price_change_percentage
+      FROM assets a
+      LEFT JOIN price_daily today ON a.id = today.asset_id 
+        AND today.date = (SELECT MAX(date) FROM price_daily WHERE asset_id = a.id)
+      LEFT JOIN price_daily yesterday ON a.id = yesterday.asset_id 
+        AND yesterday.date = (
+          SELECT MAX(date) FROM price_daily 
+          WHERE asset_id = a.id AND date < (SELECT MAX(date) FROM price_daily WHERE asset_id = a.id)
+        )
+      WHERE a.id = ?
+    `, [id]);
     
     if (assets.length === 0) {
       return res.status(404).json({
