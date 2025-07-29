@@ -59,7 +59,7 @@ const router = express.Router();
  * @swagger
  * /api/assets:
  *   get:
- *     summary: 获取所有资产
+ *     summary: 获取所有资产(包括价格对比)
  *     tags: [Assets]
  *     parameters:
  *       - in: query
@@ -112,15 +112,38 @@ router.get('/', async (req, res) => {
     const assetTypeId = req.query.asset_type_id;
     const offset = (page - 1) * pageSize;
 
-    // 构建基础查询语句
-    let baseSql = 'SELECT * FROM assets WHERE 1=1';
+    // 构建基础查询语句，关联price_daily表获取今日和昨日价格
+    let baseSql = `
+      SELECT 
+        a.*,
+        today.price as current_price,
+        yesterday.price as previous_price,
+        CASE 
+          WHEN yesterday.price IS NOT NULL AND yesterday.price != 0 
+          THEN ((today.price - yesterday.price) / yesterday.price) * 100
+          ELSE NULL
+        END as price_change_percentage
+      FROM assets a
+      LEFT JOIN price_daily today ON a.id = today.asset_id 
+        AND today.date = (SELECT MAX(date) FROM price_daily WHERE asset_id = a.id)
+      LEFT JOIN price_daily yesterday ON a.id = yesterday.asset_id 
+        AND yesterday.date = (
+          SELECT MAX(date) FROM price_daily 
+          WHERE asset_id = a.id AND date < (SELECT MAX(date) FROM price_daily WHERE asset_id = a.id)
+        )
+      WHERE 1=1
+    `;
+    
     let countSql = 'SELECT COUNT(*) as total FROM assets WHERE 1=1';
     const params = [];
 
     if (assetTypeId) {
-      baseSql += ` AND asset_type_id = ${assetTypeId}`;
+      baseSql += ` AND a.asset_type_id = ${assetTypeId}`;
       countSql += ` AND asset_type_id = ${assetTypeId}`;
     }
+
+    // 添加排序以确保结果一致
+    baseSql += ' ORDER BY a.id';
 
     // 使用Promise.all并行执行查询
     const [items, totalResult] = await Promise.all([
