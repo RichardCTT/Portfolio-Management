@@ -7,6 +7,12 @@ import {
 } from '../utils/dateUtils.js';
 
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   name: Price Daily
+ *   description: 每日价格管理 API
+ */
 
 /**
  * @swagger
