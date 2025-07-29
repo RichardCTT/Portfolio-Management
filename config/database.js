@@ -12,7 +12,7 @@ const dbConfig = {
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'portfolio_management',
   charset: 'utf8mb4',
-  timezone: '+08:00'
+  timezone: 'Z'  // 🔧 使用UTC时区，避免日期转换问题
 };
 
 // 连接池配置
