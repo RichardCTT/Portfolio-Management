@@ -8,7 +8,16 @@ import priceDailyRouter from './routes/price_daily.js';
 import analysisRouter from './routes/analysis.js';
 
 const app = express();
+
+// Swagger UI 界面
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Swagger JSON 端点 - 提供原始的 OpenAPI JSON 规范
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
 const PORT = process.env.PORT || 3000;
 
 // 中间件
@@ -27,7 +36,17 @@ app.get('/', (req, res) => {
     message: 'Welcome to Portfolio Management API',
     status: 'Server is running',
     version: '1.0.0',
-    swagger_docs: `http://localhost:${PORT}/api-docs`
+    documentation: {
+      swagger_ui: `http://localhost:${PORT}/api-docs`,
+      swagger_json: `http://localhost:${PORT}/api-docs.json`
+    },
+    endpoints: {
+      assets: `http://localhost:${PORT}/api/assets`,
+      asset_types: `http://localhost:${PORT}/api/asset_types`,
+      transactions: `http://localhost:${PORT}/api/transactions`,
+      price_daily: `http://localhost:${PORT}/api/price_daily`,
+      analysis: `http://localhost:${PORT}/api/analysis`
+    }
   });
 });
 
