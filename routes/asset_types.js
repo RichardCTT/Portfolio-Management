@@ -7,7 +7,7 @@ const router = express.Router();
  * @swagger
  * tags:
  *   name: Asset Types
- *   description: 资产类型管理
+ *   description: 资产类型管理 API
  */
 
 /**

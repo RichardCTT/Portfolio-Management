@@ -1,5 +1,6 @@
 import express from 'express';
 import { query, transaction } from '../config/database.js';
+import { getAssetHoldingAnalysis } from '../service/analysisService.js';
 
 const router = express.Router();
 
@@ -393,6 +394,5 @@ router.get('/asset-totals-by-type/', async (req, res) => {
         });
     }
 });
-
 
 export default router;
