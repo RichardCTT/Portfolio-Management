@@ -429,4 +429,408 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+
+
+/**
+ * @swagger
+ * /api/transactions/sell:
+ *   post:
+ *     summary: 卖出资产
+ *     description: 根据指定日期的价格卖出资产，自动向现金账户添加对应金额
+ *     tags: [Transactions]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - asset_id
+ *               - quantity
+ *               - date
+ *             properties:
+ *               asset_id:
+ *                 type: integer
+ *                 description: 要卖出的资产ID
+ *                 example: 2
+ *               quantity:
+ *                 type: number
+ *                 format: float
+ *                 description: 卖出数量
+ *                 example: 5.0
+ *               date:
+ *                 type: string
+ *                 format: date
+ *                 description: 卖出日期（YYYY-MM-DD格式）
+ *                 example: "2025-07-29"
+ *               description:
+ *                 type: string
+ *                 description: 交易描述（可选）
+ *                 example: "部分获利了结"
+ *     responses:
+ *       201:
+ *         description: 资产卖出成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 201
+ *                 message:
+ *                   type: string
+ *                   example: "Asset sold successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     transaction:
+ *                       $ref: '#/components/schemas/Transaction'
+ *                     total_received:
+ *                       type: number
+ *                       format: float
+ *                       description: 总收到金额
+ *                       example: 2300.0
+ *                     new_cash_balance:
+ *                       type: number
+ *                       format: float
+ *                       description: 新的现金余额
+ *                       example: 497800.0
+ *       400:
+ *         description: 请求参数错误或持仓不足
+ *       404:
+ *         description: 资产未找到或当日无价格数据
+ *       500:
+ *         description: 服务器错误
+ */
+router.post('/sell', async (req, res) => {
+  try {
+    const { asset_id, quantity, date, description } = req.body;
+    
+    // 参数验证
+    if (!asset_id || !quantity || !date) {
+      return res.status(400).json({
+        code: 400,
+        message: 'Missing required parameters: asset_id, quantity, and date are required',
+        data: null
+      });
+    }
+
+    if (quantity <= 0) {
+      return res.status(400).json({
+        code: 400,
+        message: 'Quantity must be greater than 0',
+        data: null
+      });
+    }
+
+    // 使用事务确保数据一致性
+    const result = await transaction(async (connection) => {
+      // 1. 检查要卖出的资产是否存在
+      const [assets] = await connection.execute(
+        'SELECT * FROM assets WHERE id = ?',
+        [asset_id]
+      );
+      
+      if (assets.length === 0) {
+        throw new Error('Asset not found');
+      }
+      
+      const asset = assets[0];
+
+      // 2. 检查持仓是否足够
+      if (asset.quantity < quantity) {
+        throw new Error(`Insufficient asset quantity. Required: ${quantity}, Available: ${asset.quantity}`);
+      }
+
+      // 3. 获取指定日期的价格
+      const [priceData] = await connection.execute(
+        'SELECT price FROM price_daily WHERE asset_id = ? AND date = ?',
+        [asset_id, date]
+      );
+      
+      if (priceData.length === 0) {
+        throw new Error(`No price data found for asset ${asset.code} on ${date}`);
+      }
+      
+      const unitPrice = priceData[0].price;
+      const totalReceived = unitPrice * quantity;
+
+      // 4. 获取现金账户信息（CASH001）
+      const [cashAccounts] = await connection.execute(
+        'SELECT * FROM assets WHERE code = ?',
+        ['CASH001']
+      );
+      
+      if (cashAccounts.length === 0) {
+        throw new Error('Cash account not found');
+      }
+      
+      const cashAccount = cashAccounts[0];
+
+      // 5. 创建卖出交易记录
+      const newHolding = asset.quantity - quantity;
+      const [sellTransactionResult] = await connection.execute(
+        'INSERT INTO transactions (asset_id, transaction_type, quantity, price, transaction_date, holding, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [asset_id, 'OUT', quantity, unitPrice, date, newHolding, description || `Sale of ${quantity} units of ${asset.name}`]
+      );
+
+      // 6. 更新资产持有量
+      await connection.execute(
+        'UPDATE assets SET quantity = ? WHERE id = ?',
+        [newHolding, asset_id]
+      );
+
+      // 7. 创建现金收入交易记录
+      const newCashBalance = cashAccount.quantity + totalReceived;
+      const [cashTransactionResult] = await connection.execute(
+        'INSERT INTO transactions (asset_id, transaction_type, quantity, price, transaction_date, holding, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [cashAccount.id, 'IN', totalReceived, 1.0, date, newCashBalance, `Cash received from selling ${quantity} units of ${asset.name}`]
+      );
+
+      // 8. 更新现金余额
+      await connection.execute(
+        'UPDATE assets SET quantity = ? WHERE id = ?',
+        [newCashBalance, cashAccount.id]
+      );
+
+      // 9. 获取创建的卖出交易记录
+      const [newTransaction] = await connection.execute(
+        'SELECT * FROM transactions WHERE id = ?',
+        [sellTransactionResult.insertId]
+      );
+
+      return {
+        transaction: newTransaction[0],
+        total_received: totalReceived,
+        new_cash_balance: newCashBalance,
+        asset_name: asset.name,
+        unit_price: unitPrice
+      };
+    });
+
+    res.status(201).json({
+      code: 201,
+      message: 'Asset sold successfully',
+      data: result
+    });
+
+  } catch (error) {
+    console.error('资产卖出失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message || '服务器内部错误',
+      data: null
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/transactions/buy:
+ *   post:
+ *     summary: 买入资产
+ *     description: 根据指定日期的价格买入资产，自动从现金账户扣除对应金额
+ *     tags: [Transactions]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - asset_id
+ *               - quantity
+ *               - date
+ *             properties:
+ *               asset_id:
+ *                 type: integer
+ *                 description: 要购买的资产ID
+ *                 example: 2
+ *               quantity:
+ *                 type: number
+ *                 format: float
+ *                 description: 购买数量
+ *                 example: 10.0
+ *               date:
+ *                 type: string
+ *                 format: date
+ *                 description: 购买日期（YYYY-MM-DD格式）
+ *                 example: "2025-07-29"
+ *               description:
+ *                 type: string
+ *                 description: 交易描述（可选）
+ *                 example: "月度投资计划购买"
+ *     responses:
+ *       201:
+ *         description: 资产购买成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 201
+ *                 message:
+ *                   type: string
+ *                   example: "Asset purchased successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     transaction:
+ *                       $ref: '#/components/schemas/Transaction'
+ *                     total_cost:
+ *                       type: number
+ *                       format: float
+ *                       description: 总花费金额
+ *                       example: 4500.0
+ *                     remaining_cash:
+ *                       type: number
+ *                       format: float
+ *                       description: 剩余现金
+ *                       example: 495500.0
+ *       400:
+ *         description: 请求参数错误或资金不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "Insufficient cash balance"
+ *                 data:
+ *                   type: object
+ *                   nullable: true
+ *       404:
+ *         description: 资产未找到或当日无价格数据
+ *       500:
+ *         description: 服务器错误
+ */
+router.post('/buy', async (req, res) => {
+  try {
+    const { asset_id, quantity, date, description } = req.body;
+    
+    // 参数验证
+    if (!asset_id || !quantity || !date) {
+      return res.status(400).json({
+        code: 400,
+        message: 'Missing required parameters: asset_id, quantity, and date are required',
+        data: null
+      });
+    }
+
+    if (quantity <= 0) {
+      return res.status(400).json({
+        code: 400,
+        message: 'Quantity must be greater than 0',
+        data: null
+      });
+    }
+
+    // 使用事务确保数据一致性
+    const result = await transaction(async (connection) => {
+      // 1. 检查要购买的资产是否存在
+      const [assets] = await connection.execute(
+        'SELECT * FROM assets WHERE id = ?',
+        [asset_id]
+      );
+      
+      if (assets.length === 0) {
+        throw new Error('Asset not found');
+      }
+      
+      const asset = assets[0];
+
+      // 2. 获取指定日期的价格
+      const [priceData] = await connection.execute(
+        'SELECT price FROM price_daily WHERE asset_id = ? AND date = ?',
+        [asset_id, date]
+      );
+      
+      if (priceData.length === 0) {
+        throw new Error(`No price data found for asset ${asset.code} on ${date}`);
+      }
+      
+      const unitPrice = priceData[0].price;
+      const totalCost = unitPrice * quantity;
+
+      // 3. 获取现金账户信息（CASH001）
+      const [cashAccounts] = await connection.execute(
+        'SELECT * FROM assets WHERE code = ?',
+        ['CASH001']
+      );
+      
+      if (cashAccounts.length === 0) {
+        throw new Error('Cash account not found');
+      }
+      
+      const cashAccount = cashAccounts[0];
+
+      // 4. 检查现金余额是否足够
+      if (cashAccount.quantity < totalCost) {
+        throw new Error(`Insufficient cash balance. Required: ${totalCost}, Available: ${cashAccount.quantity}`);
+      }
+
+      // 5. 创建买入交易记录
+      const newHolding = asset.quantity + quantity;
+      const [buyTransactionResult] = await connection.execute(
+        'INSERT INTO transactions (asset_id, transaction_type, quantity, price, transaction_date, holding, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [asset_id, 'IN', quantity, unitPrice, date, newHolding, description || `Purchase of ${quantity} units of ${asset.name}`]
+      );
+
+      // 6. 更新资产持有量
+      await connection.execute(
+        'UPDATE assets SET quantity = ? WHERE id = ?',
+        [newHolding, asset_id]
+      );
+
+      // 7. 创建现金支出交易记录
+      const newCashBalance = cashAccount.quantity - totalCost;
+      const [cashTransactionResult] = await connection.execute(
+        'INSERT INTO transactions (asset_id, transaction_type, quantity, price, transaction_date, holding, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [cashAccount.id, 'OUT', totalCost, 1.0, date, newCashBalance, `Cash payment for purchasing ${quantity} units of ${asset.name}`]
+      );
+
+      // 8. 更新现金余额
+      await connection.execute(
+        'UPDATE assets SET quantity = ? WHERE id = ?',
+        [newCashBalance, cashAccount.id]
+      );
+
+      // 9. 获取创建的买入交易记录
+      const [newTransaction] = await connection.execute(
+        'SELECT * FROM transactions WHERE id = ?',
+        [buyTransactionResult.insertId]
+      );
+
+      return {
+        transaction: newTransaction[0],
+        total_cost: totalCost,
+        remaining_cash: newCashBalance,
+        asset_name: asset.name,
+        unit_price: unitPrice
+      };
+    });
+
+    res.status(201).json({
+      code: 201,
+      message: 'Asset purchased successfully',
+      data: result
+    });
+
+  } catch (error) {
+    console.error('资产购买失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message || '服务器内部错误',
+      data: null
+    });
+  }
+});
+
 export default router;
