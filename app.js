@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger.js';
 import assetTypesRouter from './routes/asset_types.js';
@@ -8,6 +9,7 @@ import priceDailyRouter from './routes/price_daily.js';
 import analysisRouter from './routes/analysis.js';
 
 const app = express();
+
 
 // Swagger UI 界面
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -20,7 +22,26 @@ app.get('/api-docs.json', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-// 中间件
+// 中间件配置
+// CORS 配置 - 允许前端跨域访问
+app.use(cors({
+  origin: [
+    'http://localhost:3000',    // React 默认端口
+    'http://localhost:3001',    // React 备用端口
+    'http://localhost:8080',    // Vue/其他框架常用端口
+    'http://localhost:8081',    
+    'http://localhost:5173',    // Vite 默认端口
+    'http://localhost:4200',    // Angular 默认端口
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:5173'
+  ],
+  credentials: true,              // 允许携带凭据
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
+// JSON 解析中间件
 app.use(express.json());
 
 // 路由
