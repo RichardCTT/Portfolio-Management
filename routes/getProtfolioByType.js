@@ -99,6 +99,24 @@ const router = express.Router();
  *                 net_value:
  *                   type: number
  *                   description: Net value (IN - OUT)
+ *             pagination:
+ *               type: object
+ *               properties:
+ *                 page:
+ *                   type: integer
+ *                   description: Current page number
+ *                 limit:
+ *                   type: integer
+ *                   description: Number of items per page
+ *                 total_pages:
+ *                   type: integer
+ *                   description: Total number of pages
+ *                 has_next:
+ *                   type: boolean
+ *                   description: Whether there is a next page
+ *                 has_prev:
+ *                   type: boolean
+ *                   description: Whether there is a previous page
  */
 
 /**
@@ -137,6 +155,23 @@ const router = express.Router();
  *           format: date
  *           example: "2025-07-31"
  *         description: End date for filtering transactions (YYYY-MM-DD format). Optional.
+ *         required: false
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination. Optional.
+ *         required: false
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Number of items per page for pagination. Optional.
  *         required: false
  *     responses:
  *       200:
@@ -185,6 +220,12 @@ const router = express.Router();
  *                   total_in_value: 30000.00
  *                   total_out_value: 0.00
  *                   net_value: 30000.00
+ *                 pagination:
+ *                   page: 1
+ *                   limit: 10
+ *                   total_pages: 1
+ *                   has_next: false
+ *                   has_prev: false
  *       400:
  *         description: Invalid asset type ID
  *         content:
@@ -209,7 +250,7 @@ const router = express.Router();
 router.get('/transactions-by-type/:asset_type_id', async (req, res) => {
     try {
         const { asset_type_id } = req.params;
-        const { start_date, end_date } = req.query;
+        const { start_date, end_date, page = 1, limit = 10 } = req.query;
         
         // Validate asset_type_id
         if (!asset_type_id || isNaN(parseInt(asset_type_id)) || parseInt(asset_type_id) <= 0) {
@@ -217,6 +258,26 @@ router.get('/transactions-by-type/:asset_type_id', async (req, res) => {
                 success: false,
                 error: 'Invalid asset type ID',
                 message: 'Asset type ID must be a positive integer'
+            });
+        }
+
+        // Validate pagination parameters
+        const pageNum = parseInt(page) || 1;
+        const limitNum = parseInt(limit) || 10;
+        
+        if (pageNum < 1) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid page number',
+                message: 'Page number must be a positive integer'
+            });
+        }
+        
+        if (limitNum < 1 || limitNum > 100) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid limit',
+                message: 'Limit must be between 1 and 100'
             });
         }
 
@@ -248,8 +309,8 @@ router.get('/transactions-by-type/:asset_type_id', async (req, res) => {
         const assetType = await query(`
             SELECT id, name, unit, description
             FROM asset_types
-            WHERE id = ?
-        `, [asset_type_id]);
+            WHERE id = ${parseInt(asset_type_id)}
+        `, []);
 
         if (assetType.length === 0) {
             return res.status(404).json({
@@ -263,8 +324,8 @@ router.get('/transactions-by-type/:asset_type_id', async (req, res) => {
         const assets = await query(`
             SELECT id, name, code, quantity, asset_type_id
             FROM assets
-            WHERE asset_type_id = ?
-        `, [asset_type_id]);
+            WHERE asset_type_id = ${parseInt(asset_type_id)}
+        `, []);
 
         if (assets.length === 0) {
             return res.json({
@@ -285,6 +346,13 @@ router.get('/transactions-by-type/:asset_type_id', async (req, res) => {
                         total_in_value: 0,
                         total_out_value: 0,
                         net_value: 0
+                    },
+                    pagination: {
+                        page: pageNum,
+                        limit: limitNum,
+                        total_pages: 0,
+                        has_next: false,
+                        has_prev: false
                     }
                 }
             });
@@ -293,7 +361,32 @@ router.get('/transactions-by-type/:asset_type_id', async (req, res) => {
         // Step 3: Get asset IDs
         const assetIds = assets.map(asset => asset.id);
 
-        // Step 4: Get all transactions for these assets with optional date filtering
+        // Step 4: Get count of all transactions for these assets with optional date filtering
+        let countQuery = `
+            SELECT COUNT(*) as total
+            FROM transactions t
+            JOIN assets a ON t.asset_id = a.id
+            JOIN asset_types at ON a.asset_type_id = at.id
+            WHERE t.asset_id IN (${assetIds.map(() => '?').join(',')})
+        `;
+        
+        let countParams = [...assetIds];
+        
+        // Add date range conditions if provided
+        if (start_date) {
+            countQuery += ` AND DATE(t.transaction_date) >= ?`;
+            countParams.push(start_date);
+        }
+        if (end_date) {
+            countQuery += ` AND DATE(t.transaction_date) <= ?`;
+            countParams.push(end_date);
+        }
+        
+        const countResult = await query(countQuery, countParams);
+        const totalTransactions = countResult[0].total;
+        const totalPages = Math.ceil(totalTransactions / limitNum);
+        
+        // Step 5: Get all transactions for these assets with optional date filtering and pagination
         let transactionsQuery = `
             SELECT 
                 t.id,
@@ -310,26 +403,23 @@ router.get('/transactions-by-type/:asset_type_id', async (req, res) => {
             FROM transactions t
             JOIN assets a ON t.asset_id = a.id
             JOIN asset_types at ON a.asset_type_id = at.id
-            WHERE t.asset_id IN (${assetIds.map(() => '?').join(',')})
+            WHERE t.asset_id IN (${assetIds.join(',')})
         `;
-        
-        let queryParams = [...assetIds];
         
         // Add date range conditions if provided
         if (start_date) {
-            transactionsQuery += ` AND DATE(t.transaction_date) >= ?`;
-            queryParams.push(start_date);
+            transactionsQuery += ` AND DATE(t.transaction_date) >= '${start_date}'`;
         }
         if (end_date) {
-            transactionsQuery += ` AND DATE(t.transaction_date) <= ?`;
-            queryParams.push(end_date);
+            transactionsQuery += ` AND DATE(t.transaction_date) <= '${end_date}'`;
         }
         
         transactionsQuery += ` ORDER BY t.transaction_date DESC, t.id DESC`;
+        transactionsQuery += ` LIMIT ${limitNum} OFFSET ${(pageNum - 1) * limitNum}`;
         
-        const transactions = await query(transactionsQuery, queryParams);
+        const transactions = await query(transactionsQuery, []);
 
-        // Step 5: Calculate summary statistics
+        // Step 6: Calculate summary statistics
         const summary = {
             total_in_quantity: 0,
             total_out_quantity: 0,
@@ -371,9 +461,16 @@ router.get('/transactions-by-type/:asset_type_id', async (req, res) => {
                     start_date: start_date || null,
                     end_date: end_date || null
                 } : null,
-                total_transactions: transactions.length,
+                total_transactions: totalTransactions,
                 transactions: transactions,
-                summary: summary
+                summary: summary,
+                pagination: {
+                    page: pageNum,
+                    limit: limitNum,
+                    total_pages: totalPages,
+                    has_next: pageNum < totalPages,
+                    has_prev: pageNum > 1
+                }
             }
         });
 
