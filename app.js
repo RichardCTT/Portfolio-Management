@@ -6,6 +6,7 @@ import assetRouter from './routes/assets.js';
 import transactionRouter from './routes/transactions.js';
 import priceDailyRouter from './routes/price_daily.js';
 import analysisRouter from './routes/analysis.js';
+import portfolioRouter from './routes/getProtfolioByType.js';
 
 const app = express();
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -20,6 +21,7 @@ app.use('/api/assets', assetRouter);
 app.use('/api/transactions', transactionRouter);
 app.use('/api/price_daily', priceDailyRouter);
 app.use('/api/analysis', analysisRouter);
+app.use('/api/portfolio', portfolioRouter);
 
 // 基础路由
 app.get('/', (req, res) => {
