@@ -310,10 +310,13 @@ router.post('/', async (req, res) => {
  *             properties:
  *               name:
  *                 type: string
+ *               code:
+ *                 type: string
  *               description:
  *                 type: string
  *             example:
  *               name: 高纯度白银储备
+ *               code: AG-002
  *               description: 99.99%纯度银条
  *     responses:
  *       200:
@@ -337,7 +340,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, code, description } = req.body;
     
     // 检查资产是否存在
     const existingAssets = await query('SELECT * FROM assets WHERE id = ?', [id]);
@@ -351,8 +354,8 @@ router.put('/:id', async (req, res) => {
     
     // 更新资产信息
     await query(
-      'UPDATE assets SET name = ?, description = ? WHERE id = ?',
-      [name, description, id]
+      'UPDATE assets SET name = ?, code = ?, description = ? WHERE id = ?',
+      [name, code, description, id]
     );
     
     const updatedAssets = await query('SELECT * FROM assets WHERE id = ?', [id]);
