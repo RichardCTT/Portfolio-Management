@@ -1,5 +1,16 @@
 import express from 'express';
 import { query, transaction } from '../config/database.js';
+import { 
+  formatCurrency, 
+  formatQuantity, 
+  calculateTotal, 
+  addCurrency, 
+  subtractCurrency, 
+  addQuantity, 
+  subtractQuantity,
+  isValidQuantity,
+  hasSufficientFunds
+} from '../utils/financial.js';
 
 const router = express.Router();
 
@@ -516,10 +527,10 @@ router.post('/sell', async (req, res) => {
       });
     }
 
-    if (quantity <= 0) {
+    if (!isValidQuantity(quantity)) {
       return res.status(400).json({
         code: 400,
-        message: 'Quantity must be greater than 0',
+        message: 'Quantity must be a positive number',
         data: null
       });
     }
@@ -554,7 +565,7 @@ router.post('/sell', async (req, res) => {
       }
       
       const unitPrice = priceData[0].price;
-      const totalReceived = unitPrice * quantity;
+      const totalReceived = calculateTotal(unitPrice, quantity); // 使用工具函数计算总额
 
       // 4. 获取现金账户信息（CASH001）
       const [cashAccounts] = await connection.execute(
@@ -569,7 +580,7 @@ router.post('/sell', async (req, res) => {
       const cashAccount = cashAccounts[0];
 
       // 5. 创建卖出交易记录
-      const newHolding = asset.quantity - quantity;
+      const newHolding = subtractQuantity(asset.quantity, quantity); // 使用工具函数减法
       const [sellTransactionResult] = await connection.execute(
         'INSERT INTO transactions (asset_id, transaction_type, quantity, price, transaction_date, holding, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [asset_id, 'OUT', quantity, unitPrice, date, newHolding, description || `Sale of ${quantity} units of ${asset.name}`]
@@ -582,7 +593,7 @@ router.post('/sell', async (req, res) => {
       );
 
       // 7. 创建现金收入交易记录
-      const newCashBalance = cashAccount.quantity + totalReceived;
+      const newCashBalance = addCurrency(cashAccount.quantity, totalReceived); // 使用工具函数加法
       const [cashTransactionResult] = await connection.execute(
         'INSERT INTO transactions (asset_id, transaction_type, quantity, price, transaction_date, holding, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [cashAccount.id, 'IN', totalReceived, 1.0, date, newCashBalance, `Cash received from selling ${quantity} units of ${asset.name}`]
@@ -724,10 +735,10 @@ router.post('/buy', async (req, res) => {
       });
     }
 
-    if (quantity <= 0) {
+    if (!isValidQuantity(quantity)) {
       return res.status(400).json({
         code: 400,
-        message: 'Quantity must be greater than 0',
+        message: 'Quantity must be a positive number',
         data: null
       });
     }
@@ -757,7 +768,7 @@ router.post('/buy', async (req, res) => {
       }
       
       const unitPrice = priceData[0].price;
-      const totalCost = unitPrice * quantity;
+      const totalCost = calculateTotal(unitPrice, quantity); // 使用工具函数计算总额
 
       // 3. 获取现金账户信息（CASH001）
       const [cashAccounts] = await connection.execute(
@@ -772,12 +783,12 @@ router.post('/buy', async (req, res) => {
       const cashAccount = cashAccounts[0];
 
       // 4. 检查现金余额是否足够
-      if (cashAccount.quantity < totalCost) {
-        throw new Error(`Insufficient cash balance. Required: ${totalCost}, Available: ${cashAccount.quantity}`);
+      if (!hasSufficientFunds(cashAccount.quantity, totalCost)) {
+        throw new Error(`Insufficient cash balance. Required: ${formatCurrency(totalCost)}, Available: ${formatCurrency(cashAccount.quantity)}`);
       }
 
       // 5. 创建买入交易记录
-      const newHolding = asset.quantity + quantity;
+      const newHolding = addQuantity(asset.quantity, quantity); // 使用工具函数加法
       const [buyTransactionResult] = await connection.execute(
         'INSERT INTO transactions (asset_id, transaction_type, quantity, price, transaction_date, holding, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [asset_id, 'IN', quantity, unitPrice, date, newHolding, description || `Purchase of ${quantity} units of ${asset.name}`]
@@ -790,7 +801,7 @@ router.post('/buy', async (req, res) => {
       );
 
       // 7. 创建现金支出交易记录
-      const newCashBalance = cashAccount.quantity - totalCost;
+      const newCashBalance = subtractCurrency(cashAccount.quantity, totalCost); // 使用工具函数减法
       const [cashTransactionResult] = await connection.execute(
         'INSERT INTO transactions (asset_id, transaction_type, quantity, price, transaction_date, holding, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [cashAccount.id, 'OUT', totalCost, 1.0, date, newCashBalance, `Cash payment for purchasing ${quantity} units of ${asset.name}`]
