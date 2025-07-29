@@ -5,11 +5,11 @@ import assetTypesRouter from './routes/asset_types.js';
 import assetRouter from './routes/assets.js';
 import transactionRouter from './routes/transactions.js';
 import priceDailyRouter from './routes/price_daily.js';
+import analysisRouter from './routes/analysis.js';
 
 const app = express();
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 const PORT = process.env.PORT || 3000;
-
 
 // 中间件
 app.use(express.json());
@@ -19,19 +19,9 @@ app.use('/api/asset_types', assetTypesRouter);
 app.use('/api/assets', assetRouter);
 app.use('/api/transactions', transactionRouter);
 app.use('/api/price_daily', priceDailyRouter);
+app.use('/api/analysis', analysisRouter);
 
 // 基础路由
-/**
- * @swagger
- * /:
- *   get:
- *     summary: Welcome endpoint
- *     description: Returns a welcome message and server status.
- *     responses:
- *       200:
- *         description: Successful response
- */
-
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Welcome to Portfolio Management API',
