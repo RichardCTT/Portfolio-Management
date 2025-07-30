@@ -95,13 +95,67 @@ const router = express.Router();
  *                     items:
  *                       type: array
  *                       items:
- *                         $ref: '#/components/schemas/Asset'
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                             description: 资产ID
+ *                           name:
+ *                             type: string
+ *                             description: 资产名称
+ *                           asset_type_id:
+ *                             type: integer
+ *                             description: 资产类型ID
+ *                           quantity:
+ *                             type: number
+ *                             format: float
+ *                             description: 数量
+ *                           code:
+ *                             type: string
+ *                             description: 资产编码
+ *                           description:
+ *                             type: string
+ *                             description: 描述
+ *                           create_date:
+ *                             type: string
+ *                             format: date-time
+ *                             description: 创建时间
+ *                           current_price:
+ *                             type: number
+ *                             format: float
+ *                             description: 当前价格
+ *                           average_position_price:
+ *                             type: number
+ *                             format: float
+ *                             description: 平均持仓价格
+ *                           price_change_percentage:
+ *                             type: number
+ *                             format: float
+ *                             description: 价格变化百分比
  *                     total:
  *                       type: integer
  *                     page:
  *                       type: integer
  *                     page_size:
  *                       type: integer
+ *             example:
+ *               code: 200
+ *               message: Success
+ *               data:
+ *                 items:
+ *                   - id: 1
+ *                     name: 黄金储备
+ *                     asset_type_id: 1
+ *                     quantity: 50.5
+ *                     code: AU-001
+ *                     description: 标准金条
+ *                     create_date: 2023-10-27T08:00:00Z
+ *                     current_price: 450.0
+ *                     average_position_price: 420.0
+ *                     price_change_percentage: 7.14
+ *                 total: 1
+ *                 page: 1
+ *                 page_size: 10
  *       500:
  *         description: 服务器错误
  */
@@ -204,7 +258,57 @@ router.get('/', async (req, res) => {
  *                 message:
  *                   type: string
  *                 data:
- *                   $ref: '#/components/schemas/Asset'
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       description: 资产ID
+ *                     name:
+ *                       type: string
+ *                       description: 资产名称
+ *                     asset_type_id:
+ *                       type: integer
+ *                       description: 资产类型ID
+ *                     quantity:
+ *                       type: number
+ *                       format: float
+ *                       description: 数量
+ *                     code:
+ *                       type: string
+ *                       description: 资产编码
+ *                     description:
+ *                       type: string
+ *                       description: 描述
+ *                     create_date:
+ *                       type: string
+ *                       format: date-time
+ *                       description: 创建时间
+ *                     current_price:
+ *                       type: number
+ *                       format: float
+ *                       description: 当前价格
+ *                     average_position_price:
+ *                       type: number
+ *                       format: float
+ *                       description: 平均持仓价格
+ *                     price_change_percentage:
+ *                       type: number
+ *                       format: float
+ *                       description: 价格变化百分比
+ *             example:
+ *               code: 200
+ *               message: Success
+ *               data:
+ *                 id: 1
+ *                 name: 黄金储备
+ *                 asset_type_id: 1
+ *                 quantity: 50.5
+ *                 code: AU-001
+ *                 description: 标准金条
+ *                 create_date: 2023-10-27T08:00:00Z
+ *                 current_price: 450.0
+ *                 average_position_price: 420.0
+ *                 price_change_percentage: 7.14
  *       404:
  *         description: 资产未找到
  *       500:
