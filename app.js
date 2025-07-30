@@ -8,6 +8,7 @@ import transactionRouter from './routes/transactions.js';
 import priceDailyRouter from './routes/price_daily.js';
 import analysisRouter from './routes/analysis.js';
 import portfolioRouter from './routes/getProtfolioByType.js';
+import mainPageRouter from './routes/mainPage.js';
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api/transactions', transactionRouter);
 app.use('/api/price_daily', priceDailyRouter);
 app.use('/api/analysis', analysisRouter);
 app.use('/api/portfolio', portfolioRouter);
+app.use('/api/main_page', mainPageRouter);
 
 // 基础路由
 app.get('/', (req, res) => {
