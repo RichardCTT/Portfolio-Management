@@ -112,25 +112,30 @@ router.get('/', async (req, res) => {
     const assetTypeId = req.query.asset_type_id;
     const offset = (page - 1) * pageSize;
 
-    // 构建基础查询语句，关联price_daily表获取今日和昨日价格
+    // 构建基础查询语句，关联price_daily表获取今日价格，计算平均持仓价格
     let baseSql = `
       SELECT 
         a.*,
         today.price as current_price,
-        yesterday.price as previous_price,
+        COALESCE(avg_price.avg_buy_price, 0) as average_position_price,
         CASE 
-          WHEN yesterday.price IS NOT NULL AND yesterday.price != 0 
-          THEN ((today.price - yesterday.price) / yesterday.price) * 100
+          WHEN today.price IS NOT NULL AND avg_price.avg_buy_price IS NOT NULL AND avg_price.avg_buy_price != 0 
+          THEN ROUND(((today.price - avg_price.avg_buy_price) / avg_price.avg_buy_price) * 100, 2)
+          WHEN today.price IS NOT NULL AND (avg_price.avg_buy_price IS NULL OR avg_price.avg_buy_price = 0)
+          THEN NULL
           ELSE NULL
         END as price_change_percentage
       FROM assets a
       LEFT JOIN price_daily today ON a.id = today.asset_id 
         AND today.date = (SELECT MAX(date) FROM price_daily WHERE asset_id = a.id)
-      LEFT JOIN price_daily yesterday ON a.id = yesterday.asset_id 
-        AND yesterday.date = (
-          SELECT MAX(date) FROM price_daily 
-          WHERE asset_id = a.id AND date < (SELECT MAX(date) FROM price_daily WHERE asset_id = a.id)
-        )
+      LEFT JOIN (
+        SELECT 
+          asset_id,
+          SUM(quantity * price) / SUM(quantity) as avg_buy_price
+        FROM transactions 
+        WHERE transaction_type = 'IN'
+        GROUP BY asset_id
+      ) avg_price ON a.id = avg_price.asset_id
       WHERE 1=1
     `;
     
@@ -212,20 +217,25 @@ router.get('/:id', async (req, res) => {
       SELECT 
         a.*,
         today.price as current_price,
-        yesterday.price as previous_price,
+        COALESCE(avg_price.avg_buy_price, 0) as average_position_price,
         CASE 
-          WHEN yesterday.price IS NOT NULL AND yesterday.price != 0 
-          THEN ((today.price - yesterday.price) / yesterday.price) * 100
+          WHEN today.price IS NOT NULL AND avg_price.avg_buy_price IS NOT NULL AND avg_price.avg_buy_price != 0 
+          THEN ROUND(((today.price - avg_price.avg_buy_price) / avg_price.avg_buy_price) * 100, 2)
+          WHEN today.price IS NOT NULL AND (avg_price.avg_buy_price IS NULL OR avg_price.avg_buy_price = 0)
+          THEN NULL
           ELSE NULL
         END as price_change_percentage
       FROM assets a
       LEFT JOIN price_daily today ON a.id = today.asset_id 
         AND today.date = (SELECT MAX(date) FROM price_daily WHERE asset_id = a.id)
-      LEFT JOIN price_daily yesterday ON a.id = yesterday.asset_id 
-        AND yesterday.date = (
-          SELECT MAX(date) FROM price_daily 
-          WHERE asset_id = a.id AND date < (SELECT MAX(date) FROM price_daily WHERE asset_id = a.id)
-        )
+      LEFT JOIN (
+        SELECT 
+          asset_id,
+          SUM(quantity * price) / SUM(quantity) as avg_buy_price
+        FROM transactions 
+        WHERE transaction_type = 'IN'
+        GROUP BY asset_id
+      ) avg_price ON a.id = avg_price.asset_id
       WHERE a.id = ?
     `, [id]);
     
