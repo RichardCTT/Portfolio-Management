@@ -23,60 +23,6 @@ const router = express.Router();
 
 /**
  * @swagger
- * components:
- *   schemas:
- *     Transaction:
- *       type: object
- *       required:
- *         - asset_id
- *         - transaction_type
- *         - quantity
- *         - price
- *         - transaction_date
- *         - holding
- *       properties:
- *         id:
- *           type: integer
- *           description: 交易记录ID
- *         asset_id:
- *           type: integer
- *           description: 资产ID
- *         transaction_type:
- *           type: string
- *           enum: [IN, OUT]
- *           description: 交易类型(IN=入库, OUT=出库)
- *         quantity:
- *           type: number
- *           format: float
- *           description: 交易数量
- *         price:
- *           type: number
- *           format: float
- *           description: 交易单价
- *         transaction_date:
- *           type: string
- *           format: date-time
- *           description: 交易日期
- *         holding:
- *           type: number
- *           format: float
- *           description: 交易后资产余额
- *         description:
- *           type: string
- *           description: 描述
- *       example:
- *         id: 1
- *         asset_id: 1
- *         transaction_type: IN
- *         quantity: 20.0
- *         price: 450.0
- *         transaction_date: 2023-10-28T09:00:00Z
- *         holding: 70.5
- *         description: 月初采购
- */
-
-/**
- * @swagger
  * /api/transactions:
  *   get:
  *     summary: 获取所有交易记录
@@ -115,7 +61,54 @@ const router = express.Router();
  *                     items:
  *                       type: array
  *                       items:
- *                         $ref: '#/components/schemas/Transaction'
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                             description: 交易记录ID
+ *                           asset_id:
+ *                             type: integer
+ *                             description: 资产ID
+ *                           transaction_type:
+ *                             type: string
+ *                             enum: [IN, OUT]
+ *                             description: 交易类型(IN=入库, OUT=出库)
+ *                           quantity:
+ *                             type: number
+ *                             format: float
+ *                             description: 交易数量
+ *                           price:
+ *                             type: number
+ *                             format: float
+ *                             description: 交易单价
+ *                           transaction_date:
+ *                             type: string
+ *                             format: date-time
+ *                             description: 交易日期
+ *                           holding:
+ *                             type: number
+ *                             format: float
+ *                             description: 交易后资产余额
+ *                           description:
+ *                             type: string
+ *                             description: 描述
+ *                           asset_name:
+ *                             type: string
+ *                             description: 资产名称
+ *                           asset_code:
+ *                             type: string
+ *                             description: 资产代码
+ *                         example:
+ *                           id: 1
+ *                           asset_id: 1
+ *                           transaction_type: IN
+ *                           quantity: 20.0
+ *                           price: 450.0
+ *                           transaction_date: 2023-10-28T09:00:00Z
+ *                           holding: 70.5
+ *                           description: 月初采购
+ *                           asset_name: 苹果股票
+ *                           asset_code: AAPL
  *                     total:
  *                       type: integer
  *                     page:
