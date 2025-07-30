@@ -133,16 +133,16 @@ router.get('/', async (req, res) => {
     const offset = (page - 1) * pageSize;
 
     // 构建基础查询语句
-    let baseSql = 'SELECT * FROM transactions WHERE 1=1';
-    let countSql = 'SELECT COUNT(*) as total FROM transactions WHERE 1=1';
+    let baseSql = 'SELECT t.*, a.name as asset_name, a.code as asset_code FROM transactions t LEFT JOIN assets a ON t.asset_id = a.id WHERE 1=1';
+    let countSql = 'SELECT COUNT(*) as total FROM transactions t LEFT JOIN assets a ON t.asset_id = a.id WHERE 1=1';
 
     if (assetId) {
-      baseSql += ` AND asset_id = ${assetId}`;
-      countSql += ` AND asset_id = ${assetId}`;
+      baseSql += ` AND t.asset_id = ${assetId}`;
+      countSql += ` AND t.asset_id = ${assetId}`;
     }
 
     // 按照交易日期顺序排列
-    baseSql += ' ORDER BY transaction_date';
+    baseSql += ' ORDER BY t.transaction_date';
 
     // 使用Promise.all并行执行查询
     const [items, totalResult] = await Promise.all([
