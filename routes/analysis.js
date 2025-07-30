@@ -145,7 +145,7 @@ const router = express.Router();
  *       cryptocurrency, foreign currency, futures) for a given date. All values are 
  *       converted to USD. If no date is provided, defaults to today.
  *     tags:
- *       - Asset Analysis
+ *       - Analysis
  *     parameters:
  *       - in: query
  *         name: date
@@ -393,6 +393,229 @@ router.get('/asset-totals-by-type/', async (req, res) => {
             message: error.message 
         });
     }
+});
+
+/**
+ * @swagger
+ * /api/analysis/asset-holding:
+ *   get:
+ *     summary: 获取资产持仓分析
+ *     description: 获取指定资产在时间范围内的持仓变化和对应的市值分析
+ *     tags: [Analysis]
+ *     parameters:
+ *       - in: query
+ *         name: asset_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 资产ID
+ *       - in: query
+ *         name: start_date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 开始日期 (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 结束日期 (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: 分析结果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     asset_info:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         name:
+ *                           type: string
+ *                         symbol:
+ *                           type: string
+ *                         asset_type_name:
+ *                           type: string
+ *                         unit:
+ *                           type: string
+ *                     analysis_period:
+ *                       type: object
+ *                       properties:
+ *                         start_date:
+ *                           type: string
+ *                         end_date:
+ *                           type: string
+ *                         days:
+ *                           type: integer
+ *                     holding_analysis:
+ *                       type: object
+ *                       properties:
+ *                         initial_holding:
+ *                           type: string
+ *                         final_holding:
+ *                           type: string
+ *                         total_change:
+ *                           type: string
+ *                         daily_analysis:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                         period_summary:
+ *                           type: object
+ *                     summary:
+ *                       type: object
+ *       400:
+ *         description: 参数错误
+ *       404:
+ *         description: 资产不存在
+ *       500:
+ *         description: 服务器内部错误
+ */
+router.get('/asset-holding', async (req, res) => {
+  try {
+    const { asset_id, start_date, end_date } = req.query;
+
+    // 验证必需参数
+    if (!asset_id || !start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters: asset_id, start_date, end_date'
+      });
+    }
+
+    // 验证asset_id是有效的数字
+    const assetId = parseInt(asset_id);
+    if (isNaN(assetId) || assetId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid asset_id: must be a positive integer'
+      });
+    }
+
+    // 调用分析服务
+    const result = await getAssetHoldingAnalysis(assetId, start_date, end_date);
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+
+  } catch (error) {
+    console.error('Asset holding analysis endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/analysis/asset-holding/summary:
+ *   get:
+ *     summary: 获取资产持仓简要分析
+ *     description: 获取资产在指定时间范围内持仓变化的简要信息
+ *     tags: [Analysis]
+ *     parameters:
+ *       - in: query
+ *         name: asset_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 资产ID
+ *       - in: query
+ *         name: start_date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 开始日期 (YYYY-MM-DD)
+ *       - in: query
+ *         name: end_date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 结束日期 (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: 简要分析结果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     asset_info:
+ *                       type: object
+ *                     summary:
+ *                       type: object
+ *                     period_summary:
+ *                       type: object
+ */
+router.get('/asset-holding/summary', async (req, res) => {
+  try {
+    const { asset_id, start_date, end_date } = req.query;
+
+    // 验证必需参数
+    if (!asset_id || !start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters: asset_id, start_date, end_date'
+      });
+    }
+
+    // 验证asset_id是有效的数字
+    const assetId = parseInt(asset_id);
+    if (isNaN(assetId) || assetId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid asset_id: must be a positive integer'
+      });
+    }
+
+    // 调用分析服务
+    const result = await getAssetHoldingAnalysis(assetId, start_date, end_date);
+
+    if (result.success) {
+      // 返回简要信息，不包含详细的每日分析
+      const summaryResult = {
+        success: true,
+        data: {
+          asset_info: result.data.asset_info,
+          analysis_period: result.data.analysis_period,
+          summary: result.data.summary,
+          period_summary: result.data.holding_analysis.period_summary
+        }
+      };
+      res.json(summaryResult);
+    } else {
+      res.status(400).json(result);
+    }
+
+  } catch (error) {
+    console.error('Asset holding summary endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
 });
 
 export default router;
