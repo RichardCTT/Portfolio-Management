@@ -5,7 +5,7 @@
 // 2. 调用买入/卖出接口执行交易
 // 3. 统计交易成功和失败的情况
 // 4. 提供执行过程中的详细日志信息
-// 5. 日期递增模式，从30天前开始，每天递增
+// 5. 日期递增模式，从25天前开始，每天递增
 // 6. 排除asset_id为1的情况，范围2-80
 // 7. 交易策略：前40次强制买入，后40次随机买入或卖出
 
@@ -25,15 +25,22 @@ const api = axios.create({
 // 生成随机买入或卖出数据的函数
 // 参数: currentDate - 当前日期对象，用于生成递增的日期
 // 参数: isFirstHalf - 是否为前半段（强制买入）
-function generateTransactionData(currentDate, isFirstHalf = false) {
-  // 资产ID: 2-80 (排除1)
-  const asset_id = Math.floor(Math.random() * 50) + 3;
+function generateTransactionData(currentDate, transactionIndex) {
+  // 资产ID逻辑：
+  // 前85次：asset_id从2到86，确保每个资产至少有一次买入
+  // 后75次：asset_id从2到86之间随机选择
+  let asset_id;
+  if (transactionIndex <= 85) {
+    asset_id = transactionIndex + 1; // 2-86
+  } else {
+    asset_id = Math.floor(Math.random() * 85) + 2; // 2-86
+  }
   
   // 交易类型逻辑：
-  // 前半段：强制买入
-  // 后半段：随机买入或卖出
+  // 前85次：强制买入
+  // 后75次：随机买入或卖出
   let transactionType;
-  if (isFirstHalf) {
+  if (transactionIndex <= 85) {
     transactionType = 'buy';
   } else {
     const isBuy = Math.random() > 0.5;
@@ -51,7 +58,6 @@ function generateTransactionData(currentDate, isFirstHalf = false) {
   }
   quantity = parseInt(quantity); // 确保 quantity 是整数类型
   
-  // 日期: 从30天前开始，每天递增
   const date = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD格式
   
   // 生成随机描述
@@ -97,8 +103,9 @@ async function callTransactionAPI(transactionData, index) {
   }
 }
 
-// 主函数 - 执行80次交易操作（日期递增模式）
-// 前半段：强制买入；后半段：随机买入或卖出
+// 主函数 - 执行160次交易操作（日期递增模式）
+// 前85次：针对asset_id 2-86，只买入
+// 后75次：针对asset_id 2-86，随机买入或卖出
 // 日期逻辑：每10次交易后递增一天，让多个交易在同一天进行
 async function main() {
   console.log('开始执行交易操作...');
@@ -108,17 +115,14 @@ async function main() {
   let buyCount = 0;
   let sellCount = 0;
   
-  // 设置起始日期为30天前
+  // 设置起始日期为25天前
   let currentDate = new Date();
-  currentDate.setDate(currentDate.getDate() - 30);
+  currentDate.setDate(currentDate.getDate() - 25);
   
-  for (let i = 1; i <= 80; i++) {
+  for (let i = 1; i <=160; i++) {
     try {
-      // 判断是否为前半段（前40次）
-      const isFirstHalf = i <= 40;
-      
-      // 生成随机交易数据，传入当前日期和是否为前半段
-      const transactionData = generateTransactionData(currentDate, isFirstHalf);
+      // 生成随机交易数据，传入当前日期和交易索引
+      const transactionData = generateTransactionData(currentDate, i);
       
       // 调用相应接口
       await callTransactionAPI(transactionData, i);
@@ -135,7 +139,7 @@ async function main() {
     }
     
     // 每10次交易后日期递增到下一天（让多个交易在同一天进行）
-    if (i % 5 === 0) {
+    if (i % 10 === 0) {
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
