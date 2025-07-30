@@ -128,11 +128,11 @@ router.get('/summary', async (req, res) => {
       code: 200,
       message: 'Success',
       data: {
-        total_asset_value: data.total_asset_value || 0,
-        total_profit_loss: data.total_profit_loss || 0,
-        today_profit_loss: todayProfitLoss,
-        total_profit_loss_percentage: totalProfitLossPercentage,
-        today_profit_loss_percentage: todayProfitLossPercentage
+        total_asset_value: parseFloat((data.total_asset_value || 0).toFixed(2)),
+        total_profit_loss: parseFloat((data.total_profit_loss || 0).toFixed(2)),
+        today_profit_loss: parseFloat(todayProfitLoss.toFixed(2)),
+        total_profit_loss_percentage: parseFloat(totalProfitLossPercentage.toFixed(2)),
+        today_profit_loss_percentage: parseFloat(todayProfitLossPercentage.toFixed(2))
       }
     });
   } catch (error) {
@@ -209,10 +209,16 @@ router.get('/totalAssetsHistory', async (req, res) => {
       ORDER BY dates.date
     `, []);
 
+    // 对数组中的每个对象处理total_asset_value字段
+    const formattedData = historyResult.map(item => ({
+      date: item.date,
+      total_asset_value: parseFloat(item.total_asset_value.toFixed(2))
+    }));
+
     res.json({
       code: 200,
       message: 'Success',
-      data: historyResult
+      data: formattedData
     });
   } catch (error) {
     console.error('获取历史资产数据失败:', error);
