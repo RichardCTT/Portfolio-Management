@@ -185,7 +185,7 @@ router.get('/', async (req, res) => {
       LEFT JOIN (
         SELECT 
           asset_id,
-          SUM(quantity * price) / SUM(quantity) as avg_buy_price
+          ROUND(SUM(quantity * price) / SUM(quantity),2) as avg_buy_price
         FROM transactions 
         WHERE transaction_type = 'IN'
         GROUP BY asset_id
