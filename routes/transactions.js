@@ -175,67 +175,6 @@ router.get('/', async (req, res) => {
 /**
  * @swagger
  * /api/transactions/{id}:
- *   get:
- *     summary: 获取单个交易记录详情
- *     tags: [Transactions]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: 交易记录ID
- *     responses:
- *       200:
- *         description: 成功获取交易记录详情
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 code:
- *                   type: integer
- *                 message:
- *                   type: string
- *                 data:
- *                   $ref: '#/components/schemas/Transaction'
- *       404:
- *         description: 交易记录未找到
- *       500:
- *         description: 服务器错误
- */
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const transactions = await query('SELECT * FROM transactions WHERE id = ?', [id]);
-    
-    if (transactions.length === 0) {
-      return res.status(404).json({
-        code: 404,
-        message: 'Transaction not found',
-        data: null
-      });
-    }
-
-    res.json({
-      code: 200,
-      message: 'Success',
-      data: transactions[0]
-    });
-  } catch (error) {
-    console.error('获取交易记录详情失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: '服务器内部错误',
-      data: null
-    });
-  }
-});
-
-
-/**
- * @swagger
- * /api/transactions/{id}:
  *   delete:
  *     summary: 删除交易记录
  *     tags: [Transactions]
@@ -723,6 +662,165 @@ router.post('/buy', async (req, res) => {
     res.status(500).json({
       code: 500,
       message: error.message || '服务器内部错误',
+      data: null
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/transactions/cash-summary:
+ *   get:
+ *     summary: 获取现金账户汇总信息
+ *     description: 获取现金账户的总金额、当月支出、收入和净流水
+ *     tags: [Transactions]
+ *     parameters:
+ *       - in: query
+ *         name: year
+ *         schema:
+ *           type: integer
+ *         description: 年份（默认为当前年份）
+ *       - in: query
+ *         name: month
+ *         schema:
+ *           type: integer
+ *         description: 月份（默认为当前月份）
+ *     responses:
+ *       200:
+ *         description: 成功获取现金账户汇总信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total_cash:
+ *                       type: number
+ *                       format: float
+ *                       description: 总现金金额
+ *                     monthly_expense:
+ *                       type: number
+ *                       format: float
+ *                       description: 当月支出
+ *                     monthly_income:
+ *                       type: number
+ *                       format: float
+ *                       description: 当月收入
+ *                     net_flow:
+ *                       type: number
+ *                       format: float
+ *                       description: 净现金流（收入-支出）
+ *       500:
+ *         description: 服务器错误
+ */
+router.get('/cash-summary', async (req, res) => {
+  try {
+    const year = req.query.year || new Date().getFullYear();
+    const month = req.query.month || new Date().getMonth() + 1;
+    
+    // 获取现金账户总金额
+    const cashAssets = await query('SELECT quantity FROM assets WHERE code = ?', ['CASH001']);
+    const totalCash = cashAssets.length > 0 ? cashAssets[0].quantity : 0;
+    
+    // 计算当月支出和收入
+    const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0]; // 月末日期
+    
+    const transactions = await query(`
+      SELECT 
+        SUM(CASE WHEN transaction_type = 'OUT' THEN t.quantity ELSE 0 END) as monthly_expense,
+        SUM(CASE WHEN transaction_type = 'IN' THEN t.quantity ELSE 0 END) as monthly_income
+      FROM transactions t
+      JOIN assets a ON t.asset_id = a.id
+      WHERE a.code = 'CASH001' 
+      AND DATE(t.transaction_date) BETWEEN ? AND ?
+    `, [startDate, endDate]);
+    
+    const monthlyExpense = transactions[0].monthly_expense || 0;
+    const monthlyIncome = transactions[0].monthly_income || 0;
+    const netFlow = monthlyIncome - monthlyExpense;
+    
+    res.json({
+      code: 200,
+      message: 'Success',
+      data: {
+        total_cash: totalCash,
+        monthly_expense: monthlyExpense,
+        monthly_income: monthlyIncome,
+        net_flow: netFlow
+      }
+    });
+  } catch (error) {
+    console.error('获取现金账户汇总信息失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误',
+      data: null
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/transactions/{id}:
+ *   get:
+ *     summary: 获取单个交易记录详情
+ *     tags: [Transactions]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 交易记录ID
+ *     responses:
+ *       200:
+ *         description: 成功获取交易记录详情
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/Transaction'
+ *       404:
+ *         description: 交易记录未找到
+ *       500:
+ *         description: 服务器错误
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const transactions = await query('SELECT * FROM transactions WHERE id = ?', [id]);
+    
+    if (transactions.length === 0) {
+      return res.status(404).json({
+        code: 404,
+        message: 'Transaction not found',
+        data: null
+      });
+    }
+
+    res.json({
+      code: 200,
+      message: 'Success',
+      data: transactions[0]
+    });
+  } catch (error) {
+    console.error('获取交易记录详情失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误',
       data: null
     });
   }
