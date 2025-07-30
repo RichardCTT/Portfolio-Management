@@ -1,6 +1,6 @@
 import express from 'express';
 import { query, transaction } from '../config/database.js';
-import { getAssetHoldingAnalysis } from '../service/analysisService.js';
+import { getAssetHoldingAnalysis, getDailyCashBalance } from '../service/analysisService.js';
 
 const router = express.Router();
 
@@ -611,6 +611,130 @@ router.get('/asset-holding/summary', async (req, res) => {
 
   } catch (error) {
     console.error('Asset holding summary endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/analysis/daily-cash-balance:
+ *   get:
+ *     tags: [Analysis]
+ *     summary: Get daily cash balance for the past N days
+ *     description: Retrieves daily cash balance changes from today going back the specified number of days
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: Number of days to look back from today (default 30)
+ *     responses:
+ *       200:
+ *         description: Daily cash balance retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     asset_info:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         name:
+ *                           type: string
+ *                         code:
+ *                           type: string
+ *                         type:
+ *                           type: string
+ *                     analysis_period:
+ *                       type: object
+ *                       properties:
+ *                         start_date:
+ *                           type: string
+ *                           format: date
+ *                         end_date:
+ *                           type: string
+ *                           format: date
+ *                         days:
+ *                           type: integer
+ *                         actual_days:
+ *                           type: integer
+ *                     initial_holding:
+ *                       type: string
+ *                     final_holding:
+ *                       type: string
+ *                     total_change:
+ *                       type: string
+ *                     daily_balances:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           date:
+ *                             type: string
+ *                             format: date
+ *                           holding_start:
+ *                             type: string
+ *                           holding_end:
+ *                             type: string
+ *                           daily_change:
+ *                             type: string
+ *                           transactions:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                           transactions_count:
+ *                             type: integer
+ *                           has_transactions:
+ *                             type: boolean
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         total_in_amount:
+ *                           type: string
+ *                         total_out_amount:
+ *                           type: string
+ *                         total_transactions:
+ *                           type: integer
+ *                         days_with_activity:
+ *                           type: integer
+ *       400:
+ *         description: Invalid parameters
+ *       500:
+ *         description: Server error
+ */
+router.get('/daily-cash-balance', async (req, res) => {
+  try {
+    const days = req.query.days ? parseInt(req.query.days, 10) : 30;
+    
+    // 验证days参数
+    if (isNaN(days) || days <= 0 || days > 365) {
+      return res.status(400).json({
+        success: false,
+        error: 'Days parameter must be a positive integer between 1 and 365'
+      });
+    }
+    
+    const result = await getDailyCashBalance(days);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+
+  } catch (error) {
+    console.error('Daily cash balance endpoint error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error'
