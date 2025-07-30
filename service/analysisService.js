@@ -1,13 +1,13 @@
 import { query } from '../config/database.js';
-import { 
-  validateDateRange, 
-  formatDateForMySQL, 
-  processDateFields 
+import {
+  validateDateRange,
+  formatDateForMySQL,
+  processDateFields
 } from '../utils/dateUtils.js';
-import { 
-  formatCurrency, 
-  formatQuantity, 
-  calculateTotal 
+import {
+  formatCurrency,
+  formatQuantity,
+  calculateTotal
 } from '../utils/financial.js';
 
 /**
@@ -55,10 +55,10 @@ export async function getAssetHoldingAnalysis(assetId, startDate, endDate) {
 
     // 6. 分析持仓变化
     const holdingAnalysis = analyzeHoldingChanges(
-      initialHolding, 
-      transactions, 
-      priceData, 
-      formattedStartDate, 
+      initialHolding,
+      transactions,
+      priceData,
+      formattedStartDate,
       formattedEndDate
     );
 
@@ -104,7 +104,7 @@ async function getAssetInfo(assetId) {
     JOIN asset_types at ON a.asset_type_id = at.id
     WHERE a.id = ?
   `;
-  
+
   const results = await query(sql, [assetId]);
   return results.length > 0 ? results[0] : null;
 }
@@ -125,7 +125,7 @@ async function getTransactionsInRange(assetId, startDate, endDate) {
     AND DATE(transaction_date) <= DATE(?)
     ORDER BY transaction_date ASC, id ASC
   `;
-  
+
   const results = await query(sql, [assetId, startDate, endDate]);
   return processDateFields(results, ['transaction_date']);
 }
@@ -146,7 +146,7 @@ async function getPriceDataInRange(assetId, startDate, endDate) {
     AND DATE(date) <= DATE(?)
     ORDER BY date ASC
   `;
-  
+
   const results = await query(sql, [assetId, startDate, endDate]);
   return processDateFields(results, ['date', 'create_date']);
 }
@@ -166,7 +166,7 @@ async function getHoldingBeforeDate(assetId, date) {
     ORDER BY transaction_date DESC, id DESC
     LIMIT 1
   `;
-  
+
   const results = await query(sql, [assetId, date]);
   return results.length > 0 ? results[0].holding : 0;
 }
@@ -190,25 +190,25 @@ function analyzeHoldingChanges(initialHolding, transactions, priceData, startDat
   // 分析每日持仓变化
   const dailyAnalysis = [];
   let currentHolding = initialHolding;
-  
+
   // 获取日期范围内的所有日期
   const allDates = getDateRange(startDate, endDate);
-  
+
   allDates.forEach(date => {
     const dayTransactions = transactions.filter(t => t.transaction_date === date);
-    
+
     // 计算当日交易对持仓的影响
     let dayChange = 0;
     const dayTransactionDetails = [];
-    
+
     dayTransactions.forEach(transaction => {
-      const change = transaction.transaction_type === 'IN' 
-        ? transaction.quantity 
+      const change = transaction.transaction_type === 'IN'
+        ? transaction.quantity
         : -transaction.quantity;
-      
+
       dayChange += change;
       currentHolding = transaction.holding; // 使用交易记录中的最终持仓
-      
+
       dayTransactionDetails.push({
         id: transaction.id,
         type: transaction.transaction_type,
@@ -299,13 +299,186 @@ function calculateDaysBetween(startDate, endDate) {
  */
 function calculateAveragePrice(transactions) {
   if (transactions.length === 0) return null;
-  
+
   const totalValue = transactions.reduce((sum, t) => sum + calculateTotal(t.price, t.quantity), 0);
   const totalQuantity = transactions.reduce((sum, t) => sum + t.quantity, 0);
-  
+
   return totalQuantity > 0 ? formatCurrency(totalValue / totalQuantity) : null;
 }
 
+/**
+ * 获取从今天开始往前指定天数每天的现金余额
+ * @param {number} days - 往前追溯的天数，默认30天
+ * @returns {Promise<Object>} 现金余额分析结果
+ */
+export async function getDailyCashBalance(days = 30) {
+  try {
+    // 计算开始日期（从今天往前days天）
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - days);
+    
+    const formattedEndDate = endDate.toISOString().split('T')[0];
+    const formattedStartDate = startDate.toISOString().split('T')[0];
+
+    // 获取现金账户ID（asset_type_id = 1）
+    const cashAssetSql = `
+      SELECT id, name, code 
+      FROM assets 
+      WHERE asset_type_id = 1 
+      ORDER BY id ASC 
+      LIMIT 1
+    `;
+    const cashAssets = await query(cashAssetSql);
+    
+    if (cashAssets.length === 0) {
+      throw new Error('No cash asset found (asset_type_id = 1)');
+    }
+    
+    const cashAsset = cashAssets[0];
+
+    // 获取指定时间范围内的所有现金交易记录
+    const transactionsSql = `
+      SELECT quantity, holding, transaction_date, transaction_type, description
+      FROM transactions 
+      WHERE asset_id = ?
+      AND DATE(transaction_date) >= DATE(?)
+      AND DATE(transaction_date) <= DATE(?)
+      ORDER BY transaction_date ASC, id ASC
+    `;
+    
+    const transactions = await query(transactionsSql, [cashAsset.id, formattedStartDate, formattedEndDate]);
+
+    // 获取开始日期之前的最后一次交易holding作为初始余额
+    const initialHoldingSql = `
+      SELECT holding
+      FROM transactions
+      WHERE asset_id = ?
+      AND DATE(transaction_date) < DATE(?)
+      ORDER BY transaction_date DESC, id DESC
+      LIMIT 1
+    `;
+    
+    const initialResults = await query(initialHoldingSql, [cashAsset.id, formattedStartDate]);
+    const initialHolding = initialResults.length > 0 ? initialResults[0].holding : 0;
+
+    // 生成每天的日期范围
+    const dateRange = getDateRange(formattedStartDate, formattedEndDate);
+    
+    // 分析每日现金余额变化
+    const dailyBalances = [];
+    let currentHolding = initialHolding;
+
+    dateRange.forEach(date => {
+      const dayTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.transaction_date).toISOString().split('T')[0];
+        return transactionDate === date;
+      });
+
+      // 计算当日变化
+      let dayChange = 0;
+      const dayTransactionDetails = [];
+      
+      dayTransactions.forEach(transaction => {
+        const change = transaction.transaction_type === 'IN' 
+          ? transaction.quantity 
+          : -transaction.quantity;
+        
+        dayChange += change;
+        currentHolding = transaction.holding; // 使用交易记录中的最终holding
+        
+        dayTransactionDetails.push({
+          type: transaction.transaction_type,
+          quantity: formatCurrency(transaction.quantity),
+          description: transaction.description,
+          transaction_date: transaction.transaction_date
+        });
+      });
+
+      dailyBalances.push({
+        date,
+        holding_start: formatCurrency(currentHolding - dayChange),
+        holding_end: formatCurrency(currentHolding),
+        daily_change: formatCurrency(dayChange),
+        transactions: dayTransactionDetails,
+        transactions_count: dayTransactions.length,
+        has_transactions: dayTransactions.length > 0
+      });
+    });
+
+    return {
+      success: true,
+      data: {
+        asset_info: {
+          id: cashAsset.id,
+          name: cashAsset.name,
+          code: cashAsset.code,
+          type: 'Cash'
+        },
+        analysis_period: {
+          start_date: formattedStartDate,
+          end_date: formattedEndDate,
+          days: days,
+          actual_days: dateRange.length
+        },
+        initial_holding: formatCurrency(initialHolding),
+        final_holding: formatCurrency(currentHolding),
+        total_change: formatCurrency(currentHolding - initialHolding),
+        daily_balances: dailyBalances,
+        summary: {
+          total_in_amount: formatCurrency(
+            transactions
+              .filter(t => t.transaction_type === 'IN')
+              .reduce((sum, t) => sum + t.quantity, 0)
+          ),
+          total_out_amount: formatCurrency(
+            transactions
+              .filter(t => t.transaction_type === 'OUT')
+              .reduce((sum, t) => sum + t.quantity, 0)
+          ),
+          total_transactions: transactions.length,
+          days_with_activity: dailyBalances.filter(d => d.has_transactions).length
+        }
+      }
+    };
+
+  } catch (error) {
+    console.error('Error fetching daily cash balance:', error);
+    return {
+      success: false,
+      error: error.message,
+      data: null
+    };
+  }
+}
+
+export function getMonthlyCashBalance() {
+  query(`select quantity, holding, transaction_date 
+    from transactions 
+    where asset_id = 1
+    order by transaction_date asc`)
+    .then((results) => {
+      return results.map(row => ({
+        quantity: formatQuantity(row.quantity),
+        holding: formatQuantity(row.holding),
+        transaction_date: row.transaction_date
+      }));
+    }
+    ).then(cashBalances => {
+      // 处理获取到的现金余额数据
+      
+      cashBalances.forEach(balance => {
+        console.log('Transaction Date:', balance.transaction_date);
+        console.log('Quantity:', balance.quantity);
+        console.log('Holding:', balance.holding);
+      });
+    }).catch(error => {
+      console.error('Error fetching monthly cash balance:', error);
+      throw new Error('Failed to fetch monthly cash balance');
+    });
+}
+
 export default {
-  getAssetHoldingAnalysis
+  getAssetHoldingAnalysis,
+  getDailyCashBalance,
 };
