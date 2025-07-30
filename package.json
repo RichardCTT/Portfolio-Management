@@ -11,6 +11,7 @@
     "test:cash-value": "node test_cash_value.js",
     "test:asset-totals": "node test_asset_totals.js",
     "test:all-asset-totals": "node test_all_asset_totals.js",
+    "test:transactions-by-type": "node test_transactions_by_type.js",
     "query-date": "node query_any_date.js"
   },
   "keywords": [],
