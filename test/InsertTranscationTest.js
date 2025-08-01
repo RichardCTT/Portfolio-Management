@@ -115,9 +115,9 @@ async function main() {
   let buyCount = 0;
   let sellCount = 0;
   
-  // 设置起始日期为25天前
+  // 设置起始日期为29天前
   let currentDate = new Date();
-  currentDate.setDate(currentDate.getDate() - 25);
+  currentDate.setDate(currentDate.getDate() - 29);
   
   for (let i = 1; i <=160; i++) {
     try {
@@ -138,8 +138,8 @@ async function main() {
       failCount++;
     }
     
-    // 每10次交易后日期递增到下一天（让多个交易在同一天进行）
-    if (i % 10 === 0) {
+    // 每6次交易后日期递增到下一天（让多个交易在同一天进行）
+    if (i % 6 === 0) {
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
